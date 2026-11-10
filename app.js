@@ -419,36 +419,36 @@
     return { ctx, width, height };
   }
 
-  // Compute nice Y axis bounds
-  function computeYBounds(minVal, maxVal) {
+  // Compute tight Y axis bounds with clean interior grid steps
+  function computeYBounds(minVal, maxVal, targetTicks = 5) {
     if (!Number.isFinite(minVal) || !Number.isFinite(maxVal)) {
-      return { yMin: 0, yMax: 10, step: 2 };
+      return { yMin: 0, yMax: 10, step: 2, firstTick: 0 };
     }
     let span = maxVal - minVal;
-    if (span < 1.2) {
+    if (span < 0.4) {
       const mid = (minVal + maxVal) / 2;
-      minVal = mid - 0.8;
-      maxVal = mid + 0.8;
-      span = maxVal - minVal;
-    } else {
-      const pad = span * 0.1;
-      minVal -= pad;
-      maxVal += pad;
+      minVal = mid - 0.25;
+      maxVal = mid + 0.25;
       span = maxVal - minVal;
     }
 
-    const rawStep = span / 4;
-    const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
-    const residual = rawStep / mag;
-    let step = mag;
-    if (residual > 5) step = 10 * mag;
-    else if (residual > 2) step = 5 * mag;
-    else if (residual > 1) step = 2 * mag;
-    step = Math.max(0.2, step);
+    const pad = Math.max(0.02, span * 0.015);
+    const yMin = minVal - pad;
+    const yMax = maxVal + pad;
+    const totalSpan = yMax - yMin;
 
-    const yMin = Math.floor(minVal / step) * step;
-    const yMax = Math.ceil(maxVal / step) * step;
-    return { yMin, yMax: yMax === yMin ? yMin + step : yMax, step };
+    const rawStep = totalSpan / targetTicks;
+    const niceSteps = [0.1, 0.2, 0.25, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 10];
+    let step = niceSteps[niceSteps.length - 1];
+    for (let i = 0; i < niceSteps.length; i++) {
+      if (niceSteps[i] >= rawStep) {
+        step = niceSteps[i];
+        break;
+      }
+    }
+
+    const firstTick = Math.ceil(yMin / step) * step;
+    return { yMin, yMax, step, firstTick };
   }
 
   // Render Combined Multi-Sensor Chart
@@ -461,10 +461,10 @@
 
     ctx.clearRect(0, 0, width, height);
 
-    const padLeft = 44;
-    const padRight = 14;
-    const padTop = 14;
-    const padBottom = 26;
+    const padLeft = 40;
+    const padRight = 10;
+    const padTop = 6;
+    const padBottom = 22;
     const plotW = Math.max(10, width - padLeft - padRight);
     const plotH = Math.max(10, height - padTop - padBottom);
     const maxBuckets = Math.max(160, Math.floor(plotW * 0.65));
@@ -499,7 +499,7 @@
       }
     }
 
-    const { yMin, yMax, step } = computeYBounds(globalMin, globalMax);
+    const { yMin, yMax, step, firstTick } = computeYBounds(globalMin, globalMax, 6);
 
     const xOf = (t) => padLeft + ((t - minT) / (maxT - minT)) * plotW;
     const yOf = (v) => padTop + (1 - (v - yMin) / (yMax - yMin)) * plotH;
@@ -511,7 +511,7 @@
     const gridColor = getComputedStyle(document.documentElement).getPropertyValue("--grid-line").trim();
     const textMuted = getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim();
 
-    for (let yVal = yMin; yVal <= yMax + step * 0.001; yVal += step) {
+    for (let yVal = firstTick; yVal <= yMax + step * 0.001; yVal += step) {
       const y = Math.round(yOf(yVal)) + 0.5;
       if (y < padTop - 2 || y > padTop + plotH + 2) continue;
       ctx.strokeStyle = gridColor;
@@ -522,7 +522,8 @@
       ctx.stroke();
 
       ctx.fillStyle = textMuted;
-      const label = Math.abs(step) < 1 ? yVal.toFixed(1) : yVal.toFixed(0);
+      const decimals = step < 0.25 ? 2 : step % 1 !== 0 ? 1 : 0;
+      const label = yVal.toFixed(decimals);
       ctx.fillText(`${label}°`, padLeft - 7, y);
     }
 
@@ -727,9 +728,10 @@
       }
     }
 
-    const { yMin, yMax, step } = computeYBounds(
+    const { yMin, yMax, step, firstTick } = computeYBounds(
       minPt ? minPt.temp : (st.latestTemp ?? 5) - 1,
-      maxPt ? maxPt.temp : (st.latestTemp ?? 5) + 1
+      maxPt ? maxPt.temp : (st.latestTemp ?? 5) + 1,
+      4
     );
 
     const xOf = (t) => padLeft + ((t - minT) / (maxT - minT)) * plotW;
@@ -742,7 +744,7 @@
     ctx.textAlign = "right";
     ctx.textBaseline = "middle";
 
-    for (let yVal = yMin; yVal <= yMax + step * 0.001; yVal += step) {
+    for (let yVal = firstTick; yVal <= yMax + step * 0.001; yVal += step) {
       const y = Math.round(yOf(yVal)) + 0.5;
       if (y < padTop - 2 || y > padTop + plotH + 2) continue;
       ctx.strokeStyle = gridColor;
@@ -753,7 +755,8 @@
       ctx.stroke();
 
       ctx.fillStyle = textMuted;
-      const label = Math.abs(step) < 1 ? yVal.toFixed(1) : yVal.toFixed(0);
+      const decimals = step < 0.25 ? 2 : step % 1 !== 0 ? 1 : 0;
+      const label = yVal.toFixed(decimals);
       ctx.fillText(`${label}°`, padLeft - 6, y);
     }
 
