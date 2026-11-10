@@ -1,31 +1,4 @@
-[data-theme="light"] {
-  --bg: #f8f9fa;
-  --surface: #ffffff;
-  --surface-subtle: #f1f3f5;
-  --surface-hover: #f3f5f7;
-  --border: #e4e7ec;
-  --border-strong: #cfd5de;
-  --text: #101828;
-  --text-secondary: #475467;
-  --text-muted: #667085;
-  --accent: #0f172a;
-  --accent-fg: #ffffff;
-  --grid-line: rgba(16, 24, 40, 0.06);
-  --zero-line: rgba(14, 116, 144, 0.28);
-  --crosshair: rgba(16, 24, 40, 0.28);
-  --tooltip-bg: rgba(16, 24, 40, 0.94);
-  --tooltip-text: #f8fafc;
-  --tooltip-border: rgba(255, 255, 255, 0.14);
-  --warn-bg: #fffbeb;
-  --warn-text: #b45309;
-  --warn-border: #fde68a;
-  --live-ok: #12b76a;
-  --live-busy: #f59e0b;
-  --shadow-xs: 0 1px 2px rgba(16, 24, 40, 0.03);
-}
-
-:root,
-[data-theme="dark"] {
+:root {
   --bg: #0b0f17;
   --surface: #111722;
   --surface-subtle: #182030;
@@ -719,8 +692,13 @@ body {
 .stations-map {
   width: 100%;
   height: 100%;
-  background: var(--surface-subtle);
+  background: #0d1520;
   z-index: 1;
+}
+
+/* Dark-mode styling for OpenStreetMap tiles (keeps markers & popups untouched) */
+.stations-map .leaflet-tile-pane {
+  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%);
 }
 
 .map-coolwarm-legend {

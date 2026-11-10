@@ -989,10 +989,6 @@
   // Render Map View (Latest sensor temperatures only, Coolwarm colormap + legend)
   function ensureMapInitialized() {
     if (typeof window.L === "undefined" || !el.stationsMap) return null;
-    const dark = isDarkTheme();
-    const tileUrl = dark
-      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
 
     if (!state.mapInstance) {
       state.mapInstance = window.L.map(el.stationsMap, {
@@ -1000,17 +996,15 @@
         zoom: 11,
         zoomControl: true,
       });
-      state.mapTileLayer = window.L.tileLayer(tileUrl, {
-        attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: "abcd",
-        maxZoom: 19,
-      }).addTo(state.mapInstance);
+      state.mapTileLayer = window.L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          maxZoom: 19,
+        }
+      ).addTo(state.mapInstance);
       state.mapMarkersLayer = window.L.layerGroup().addTo(state.mapInstance);
-      state.mapTheme = dark ? "dark" : "light";
-    } else if (state.mapTheme !== (dark ? "dark" : "light")) {
-      state.mapTileLayer.setUrl(tileUrl);
-      state.mapTheme = dark ? "dark" : "light";
     }
     return state.mapInstance;
   }
@@ -1373,15 +1367,8 @@
       loadTelemetry();
     });
 
-    // Light / Dark theme toggle (Dark mode by default)
-    const savedTheme = localStorage.getItem("sensoripaja-theme-v2") || "dark";
-    document.documentElement.setAttribute("data-theme", savedTheme);
-    el.themeBtn.addEventListener("click", () => {
-      const next = isDarkTheme() ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem("sensoripaja-theme-v2", next);
-      renderAll();
-    });
+    // Always use dark mode
+    document.documentElement.setAttribute("data-theme", "dark");
 
     // Responsive redraw on window resize
     let resizeTimer = null;
