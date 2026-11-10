@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
@@ -25,6 +26,12 @@
       </div>
 
       <div class="controls-bar">
+        <!-- Main View Tabs: Charts vs Map -->
+        <div class="segmented-control view-tabs" role="tablist" aria-label="View mode" id="view-tabs">
+          <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-view="charts">Charts</button>
+          <button type="button" class="seg-btn" role="tab" aria-selected="false" data-view="map">Map</button>
+        </div>
+
         <!-- Region Filter -->
         <div class="segmented-control" role="group" aria-label="Region filter" id="region-picker">
           <button type="button" class="seg-btn active" data-region="all">All <span class="count-badge" id="count-all">–</span></button>
@@ -91,50 +98,99 @@
   </header>
 
   <main class="container main-content">
-    <!-- Combined Single-View Multi-Sensor Chart -->
-    <section class="panel overview-panel" id="overview-section" aria-label="Combined multi-sensor temperature chart">
-      <div class="panel-header">
-        <div class="panel-title-group">
-          <h2 class="panel-title">All Sensors — Combined View</h2>
-          <span class="panel-caption" id="overview-caption">Each sensor plotted with a unique color</span>
-        </div>
-        <div class="panel-actions">
-          <button type="button" class="text-btn" id="reset-highlight-btn" hidden>Show all sensors</button>
-          <button type="button" class="text-btn" id="toggle-overview-btn" title="Collapse or expand combined chart">Hide combined chart</button>
-        </div>
-      </div>
+    <div id="error-banner" class="error-banner" hidden></div>
 
-      <div class="overview-body" id="overview-body">
-        <div class="overview-chart-wrap">
-          <canvas id="overview-canvas" class="chart-canvas overview-canvas"></canvas>
-          <div id="overview-tooltip" class="chart-tooltip overview-tooltip" hidden></div>
-        </div>
-        <div class="sensor-legend" id="sensor-legend" aria-label="Sensor color legend"></div>
-      </div>
-    </section>
-
-    <!-- Per-Station Stacked Views -->
-    <section class="stations-section" aria-label="Station temperature charts">
-      <div class="section-bar">
-        <div class="section-bar-left">
-          <h2 class="section-heading">Stations</h2>
-          <span class="section-meta" id="stations-count-label">Loading stations…</span>
-        </div>
-        <div class="section-bar-right">
-          <label class="checkbox-pill">
-            <input type="checkbox" id="hide-storage-toggle" />
-            <span>Hide sensors in winter storage</span>
-          </label>
-          <div class="segmented-control compact" role="group" aria-label="Layout density" id="layout-picker">
-            <button type="button" class="seg-btn active" data-layout="stack" title="Single column stacked view">Stacked</button>
-            <button type="button" class="seg-btn" data-layout="grid" title="Two-column compact grid">Grid</button>
+    <!-- CHARTS VIEW -->
+    <div id="charts-view" class="view-pane">
+      <!-- Combined Single-View Multi-Sensor Chart -->
+      <section class="panel overview-panel" id="overview-section" aria-label="Combined multi-sensor temperature chart">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2 class="panel-title">All Sensors — Combined View</h2>
+            <span class="panel-caption" id="overview-caption">Each sensor plotted with a unique color</span>
+          </div>
+          <div class="panel-actions">
+            <button type="button" class="text-btn" id="reset-highlight-btn" hidden>Show all sensors</button>
+            <button type="button" class="text-btn" id="toggle-overview-btn" title="Collapse or expand combined chart">Hide combined chart</button>
           </div>
         </div>
-      </div>
 
-      <div id="error-banner" class="error-banner" hidden></div>
-      <div id="stations-list" class="stations-list layout-stack"></div>
-    </section>
+        <div class="overview-body" id="overview-body">
+          <div class="overview-chart-wrap">
+            <canvas id="overview-canvas" class="chart-canvas overview-canvas"></canvas>
+            <div id="overview-tooltip" class="chart-tooltip overview-tooltip" hidden></div>
+          </div>
+          <div class="sensor-legend" id="sensor-legend" aria-label="Sensor color legend"></div>
+        </div>
+      </section>
+
+      <!-- Per-Station Stacked Views -->
+      <section class="stations-section" aria-label="Station temperature charts">
+        <div class="section-bar">
+          <div class="section-bar-left">
+            <h2 class="section-heading">Stations</h2>
+            <span class="section-meta" id="stations-count-label">Loading stations…</span>
+          </div>
+          <div class="section-bar-right">
+            <label class="checkbox-pill">
+              <input type="checkbox" id="hide-storage-toggle" checked />
+              <span>Hide sensors in winter storage</span>
+            </label>
+            <div class="segmented-control compact" role="group" aria-label="Layout density" id="layout-picker">
+              <button type="button" class="seg-btn active" data-layout="stack" title="Single column stacked view">Stacked</button>
+              <button type="button" class="seg-btn" data-layout="grid" title="Two-column compact grid">Grid</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="stations-list" class="stations-list layout-stack"></div>
+      </section>
+    </div>
+
+    <!-- MAP VIEW (Latest Data Only, Coolwarm Colormap) -->
+    <div id="map-view" class="view-pane" hidden>
+      <section class="panel map-panel" aria-label="Station map with latest temperatures">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2 class="panel-title">Latest Sensor Temperatures — Map View</h2>
+            <span class="panel-caption" id="map-caption">Live snapshot • Coolwarm temperature scale</span>
+          </div>
+          <div class="panel-actions">
+            <label class="checkbox-pill">
+              <input type="checkbox" id="map-hide-storage-toggle" checked />
+              <span>Hide sensors in winter storage</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="map-stage">
+          <div id="stations-map" class="stations-map" aria-label="Interactive temperature sensor map"></div>
+
+          <!-- Coolwarm Colorbar Legend -->
+          <div class="map-coolwarm-legend" id="map-legend" aria-label="Temperature colormap legend">
+            <div class="legend-header">
+              <span class="legend-title">Water Temperature (°C)</span>
+              <span class="legend-sub">coolwarm</span>
+            </div>
+            <div class="coolwarm-bar" id="coolwarm-bar"></div>
+            <div class="coolwarm-labels">
+              <div class="cw-stop cw-min">
+                <span class="cw-tag">Min (Coolest)</span>
+                <strong id="cw-min-val">–</strong>
+              </div>
+              <div class="cw-stop cw-mid">
+                <span class="cw-tag">Mid</span>
+                <strong id="cw-mid-val">–</strong>
+              </div>
+              <div class="cw-stop cw-max">
+                <span class="cw-tag">Max (Warmest)</span>
+                <strong id="cw-max-val">–</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="container footer">
@@ -144,6 +200,7 @@
     </div>
   </footer>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>

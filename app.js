@@ -23,12 +23,13 @@
   const state = {
     stations: [], // Array of normalized station objects
     stationByKey: new Map(),
+    view: "charts", // 'charts' | 'map'
     range: "week", // 'week' | 'month' | '3m' | '6m' | 'ytd' | '1y' | '2y' | 'all'
     region: "all", // 'all' | 'swimhelsinki' | 'swimespoo'
     search: "",
     sort: "name", // 'name' | 'temp-desc' | 'temp-asc' | 'updated'
     layout: "stack", // 'stack' | 'grid'
-    hideWinterStorage: false,
+    hideWinterStorage: true,
     overviewCollapsed: false,
     focusedStationKey: null, // Click legend chip to isolate/highlight a sensor
     hoveredStationKey: null, // Hover legend chip to highlight a sensor
@@ -36,6 +37,10 @@
     earliestGlobalMs: Date.now() - 365 * DAY_MS,
     loadedHistories: 0,
     totalStations: 0,
+    mapInstance: null,
+    mapTileLayer: null,
+    mapMarkersLayer: null,
+    mapTheme: null,
   };
 
   // DOM Elements
@@ -46,6 +51,15 @@
     countAll: document.getElementById("count-all"),
     countHelsinki: document.getElementById("count-swimhelsinki"),
     countEspoo: document.getElementById("count-swimespoo"),
+    viewTabs: document.getElementById("view-tabs"),
+    chartsView: document.getElementById("charts-view"),
+    mapView: document.getElementById("map-view"),
+    stationsMap: document.getElementById("stations-map"),
+    mapCaption: document.getElementById("map-caption"),
+    mapHideStorageToggle: document.getElementById("map-hide-storage-toggle"),
+    cwMinVal: document.getElementById("cw-min-val"),
+    cwMidVal: document.getElementById("cw-mid-val"),
+    cwMaxVal: document.getElementById("cw-max-val"),
     regionPicker: document.getElementById("region-picker"),
     rangePicker: document.getElementById("range-picker"),
     layoutPicker: document.getElementById("layout-picker"),
@@ -66,6 +80,45 @@
     stationsList: document.getElementById("stations-list"),
     lastSyncLabel: document.getElementById("last-sync-label"),
   };
+
+  // Coolwarm diverging colormap (Blue -> Neutral -> Red)
+  const COOLWARM_STOPS = [
+    [0.0, [59, 76, 192]],
+    [0.25, [112, 146, 243]],
+    [0.5, [221, 221, 221]],
+    [0.75, [243, 148, 117]],
+    [1.0, [180, 4, 38]],
+  ];
+
+  function coolwarmColor(value, minVal, maxVal) {
+    if (value === null || value === undefined || Number.isNaN(value)) {
+      return { bg: "rgb(100, 116, 139)", fg: "#ffffff" };
+    }
+    const span = maxVal - minVal;
+    const t = span > 1e-6 ? Math.max(0, Math.min(1, (value - minVal) / span)) : 0.5;
+
+    let rgb = COOLWARM_STOPS[COOLWARM_STOPS.length - 1][1];
+    for (let i = 0; i < COOLWARM_STOPS.length - 1; i++) {
+      const [t0, c0] = COOLWARM_STOPS[i];
+      const [t1, c1] = COOLWARM_STOPS[i + 1];
+      if (t >= t0 && t <= t1) {
+        const u = (t - t0) / (t1 - t0);
+        rgb = [
+          Math.round(c0[0] + u * (c1[0] - c0[0])),
+          Math.round(c0[1] + u * (c1[1] - c0[1])),
+          Math.round(c0[2] + u * (c1[2] - c0[2])),
+        ];
+        break;
+      }
+    }
+
+    const lum = (0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2]) / 255;
+    const fg = lum > 0.62 ? "#0f172a" : "#ffffff";
+    return {
+      bg: `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
+      fg,
+    };
+  }
 
   // Generate unique, perceptually distinct colors for N sensors using golden-angle hue stepping
   function assignUniqueColor(index, isDark = false) {
@@ -160,6 +213,10 @@
     const info = (props.info || "").trim();
     const inWinterStorage = /talvisäilyty/i.test(info);
 
+    const coords = feature.geometry?.coordinates;
+    const lon = Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null;
+    const lat = Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null;
+
     return {
       key,
       id: feature.id || name,
@@ -167,6 +224,8 @@
       regionId: regionObj.id,
       regionLabel: regionObj.label,
       colorSpec: assignUniqueColor(globalIndex),
+      lat,
+      lon,
       latestMs,
       latestTemp,
       battmV,
@@ -927,11 +986,129 @@
     return card;
   }
 
-  // Render full view (Combined chart + Legend + Station cards)
-  function renderAll() {
+  // Render Map View (Latest sensor temperatures only, Coolwarm colormap + legend)
+  function ensureMapInitialized() {
+    if (typeof window.L === "undefined" || !el.stationsMap) return null;
+    const dark = isDarkTheme();
+    const tileUrl = dark
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
+    if (!state.mapInstance) {
+      state.mapInstance = window.L.map(el.stationsMap, {
+        center: [60.175, 24.88],
+        zoom: 11,
+        zoomControl: true,
+      });
+      state.mapTileLayer = window.L.tileLayer(tileUrl, {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 19,
+      }).addTo(state.mapInstance);
+      state.mapMarkersLayer = window.L.layerGroup().addTo(state.mapInstance);
+      state.mapTheme = dark ? "dark" : "light";
+    } else if (state.mapTheme !== (dark ? "dark" : "light")) {
+      state.mapTileLayer.setUrl(tileUrl);
+      state.mapTheme = dark ? "dark" : "light";
+    }
+    return state.mapInstance;
+  }
+
+  function renderMapView(visibleStations, fitBounds = false) {
+    if (state.view !== "map") return;
+    const map = ensureMapInitialized();
+    if (!map) return;
+
+    state.mapMarkersLayer.clearLayers();
+
+    const geoStations = visibleStations.filter(
+      (st) => typeof st.lat === "number" && typeof st.lon === "number" && typeof st.latestTemp === "number"
+    );
+
+    let minTemp = Infinity;
+    let maxTemp = -Infinity;
+    for (const st of geoStations) {
+      if (st.latestTemp < minTemp) minTemp = st.latestTemp;
+      if (st.latestTemp > maxTemp) maxTemp = st.latestTemp;
+    }
+
+    if (Number.isFinite(minTemp) && Number.isFinite(maxTemp)) {
+      const midTemp = (minTemp + maxTemp) / 2;
+      el.cwMinVal.textContent = `${minTemp.toFixed(2)} °C`;
+      el.cwMidVal.textContent = `${midTemp.toFixed(2)} °C`;
+      el.cwMaxVal.textContent = `${maxTemp.toFixed(2)} °C`;
+      el.mapCaption.textContent = `${geoStations.length} stations • Latest readings only • Range ${minTemp.toFixed(2)} °C – ${maxTemp.toFixed(2)} °C`;
+    } else {
+      el.cwMinVal.textContent = "–";
+      el.cwMidVal.textContent = "–";
+      el.cwMaxVal.textContent = "–";
+      el.mapCaption.textContent = "No stations with coordinates in current filter";
+    }
+
+    const bounds = [];
+    for (const st of geoStations) {
+      const { bg, fg } = coolwarmColor(st.latestTemp, minTemp, maxTemp);
+      const shortTemp = `${st.latestTemp.toFixed(1)}°`;
+      const icon = window.L.divIcon({
+        className: "cw-marker-wrapper",
+        html: `<div class="cw-marker" style="background:${bg};color:${fg}" title="${escapeHtml(st.name)}: ${formatTemp(st.latestTemp)}">
+          <span>${shortTemp}</span>
+        </div>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+
+      const marker = window.L.marker([st.lat, st.lon], { icon });
+      const metaLines = [];
+      if (st.platform) metaLines.push(escapeHtml(st.platform));
+      if (typeof st.depth === "number") metaLines.push(`${st.depth} m`);
+      if (st.battmV) metaLines.push(`${(st.battmV / 1000).toFixed(2)} V`);
+
+      const popupHtml = `
+        <div class="map-popup">
+          <div class="map-popup-title">
+            <span class="color-swatch" style="background:${bg};border:1px solid rgba(255,255,255,0.5)"></span>
+            <span>${escapeHtml(st.name)}</span>
+          </div>
+          <div class="map-popup-temp" style="color:${bg}">${formatTemp(st.latestTemp)}</div>
+          <div class="map-popup-meta">
+            <div>${escapeHtml(st.regionLabel)}${metaLines.length ? " • " + metaLines.join(" • ") : ""}</div>
+            <div>Measured: ${formatDateTime(st.latestMs)} (${formatRelativeAge(st.latestMs, state.referenceNowMs)})</div>
+            ${st.info ? `<div style="color:#fbbf24;margin-top:2px">${escapeHtml(st.info)}</div>` : ""}
+          </div>
+        </div>
+      `;
+      marker.bindPopup(popupHtml, { closeButton: false, offset: [0, -10] });
+      marker.addTo(state.mapMarkersLayer);
+      bounds.push([st.lat, st.lon]);
+    }
+
+    setTimeout(() => {
+      map.invalidateSize();
+      if (fitBounds && bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [42, 42], maxZoom: 13 });
+      }
+    }, 30);
+  }
+
+  // Render full view (Combined chart + Legend + Station cards OR Map view)
+  function renderAll(fitMapBounds = false) {
     const visible = getVisibleStations();
     const dark = isDarkTheme();
     const rangeLabel = RANGE_CONFIG[state.range]?.label || "7 days";
+
+    const isMap = state.view === "map";
+    el.chartsView.hidden = isMap;
+    el.mapView.hidden = !isMap;
+    // Map shows only latest data and no history option
+    el.rangePicker.hidden = isMap;
+    el.sortSelect.hidden = isMap;
+
+    if (isMap) {
+      renderMapView(visible, fitMapBounds);
+      return;
+    }
 
     el.overviewCaption.textContent = `${visible.length} sensors plotted in single view • Window: ${rangeLabel} • Click any sensor below to isolate`;
     el.stationsCountLabel.textContent = `Showing ${visible.length} of ${state.stations.length} stations (${rangeLabel})`;
@@ -1056,6 +1233,10 @@
 
       await Promise.all(workers);
 
+      if (state.view === "map") {
+        renderMapView(getVisibleStations());
+      }
+
       el.liveIndicator.classList.add("ready");
       el.statusSummary.textContent = `${state.totalStations} sensors active • Latest reading ${formatDateTime(state.referenceNowMs)}`;
       el.lastSyncLabel.textContent = `Synced ${new Date().toLocaleTimeString("fi-FI")}`;
@@ -1073,7 +1254,24 @@
 
   // Event Listeners
   function bindEvents() {
-    // Time range picker: Day, Week, Month
+    // Main View Tabs: Charts vs Map
+    if (el.viewTabs) {
+      el.viewTabs.addEventListener("click", (e) => {
+        const btn = e.target.closest("button[data-view]");
+        if (!btn) return;
+        const view = btn.dataset.view;
+        if (view === state.view) return;
+        state.view = view;
+        for (const b of el.viewTabs.querySelectorAll(".seg-btn")) {
+          const isActive = b.dataset.view === view;
+          b.classList.toggle("active", isActive);
+          b.setAttribute("aria-selected", String(isActive));
+        }
+        renderAll(view === "map");
+      });
+    }
+
+    // Time range picker
     el.rangePicker.addEventListener("click", (e) => {
       const btn = e.target.closest("button[data-range]");
       if (!btn) return;
@@ -1096,7 +1294,7 @@
       for (const b of el.regionPicker.querySelectorAll(".seg-btn")) {
         b.classList.toggle("active", b.dataset.region === region);
       }
-      renderAll();
+      renderAll(state.view === "map");
     });
 
     // Layout picker (Stacked vs Grid)
@@ -1125,11 +1323,21 @@
       renderAll();
     });
 
-    // Winter storage filter
-    el.hideStorageToggle.addEventListener("change", (e) => {
-      state.hideWinterStorage = e.target.checked;
+    // Winter storage filter (synced between Charts and Map views)
+    const syncStorageToggle = (checked) => {
+      state.hideWinterStorage = checked;
+      if (el.hideStorageToggle) el.hideStorageToggle.checked = checked;
+      if (el.mapHideStorageToggle) el.mapHideStorageToggle.checked = checked;
       renderAll();
+    };
+    el.hideStorageToggle.addEventListener("change", (e) => {
+      syncStorageToggle(e.target.checked);
     });
+    if (el.mapHideStorageToggle) {
+      el.mapHideStorageToggle.addEventListener("change", (e) => {
+        syncStorageToggle(e.target.checked);
+      });
+    }
 
     // Reset isolated sensor highlight
     el.resetHighlightBtn.addEventListener("click", () => {
