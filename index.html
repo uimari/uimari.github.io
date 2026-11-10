@@ -26,10 +26,10 @@
       </div>
 
       <div class="controls-bar">
-        <!-- Main View Tabs: Charts vs Map -->
+        <!-- Main View Tabs: Map vs Charts -->
         <div class="segmented-control view-tabs" role="tablist" aria-label="View mode" id="view-tabs">
-          <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-view="charts">Charts</button>
-          <button type="button" class="seg-btn" role="tab" aria-selected="false" data-view="map">Map</button>
+          <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-view="map">Map</button>
+          <button type="button" class="seg-btn" role="tab" aria-selected="false" data-view="charts">Charts</button>
         </div>
 
         <!-- Region Filter -->
@@ -40,7 +40,7 @@
         </div>
 
         <!-- Time Range Picker: Week, Month, 3M, 6M, YTD, 1Y, 2Y, All -->
-        <div class="segmented-control time-picker" role="group" aria-label="Time range picker" id="range-picker">
+        <div class="segmented-control time-picker" role="group" aria-label="Time range picker" id="range-picker" hidden>
           <button type="button" class="seg-btn active" data-range="week" title="Last 7 days">1W</button>
           <button type="button" class="seg-btn" data-range="month" title="Last 30 days">1M</button>
           <button type="button" class="seg-btn" data-range="3m" title="Last 3 months">3M</button>
@@ -64,7 +64,7 @@
             />
           </div>
 
-          <select id="sort-select" class="minimal-select" aria-label="Sort stations">
+          <select id="sort-select" class="minimal-select" aria-label="Sort stations" hidden>
             <option value="name">Sort: A–Z</option>
             <option value="temp-desc">Sort: Warmest</option>
             <option value="temp-asc">Sort: Coldest</option>
@@ -91,7 +91,7 @@
     <div id="error-banner" class="error-banner" hidden></div>
 
     <!-- CHARTS VIEW -->
-    <div id="charts-view" class="view-pane">
+    <div id="charts-view" class="view-pane" hidden>
       <!-- Combined Single-View Multi-Sensor Chart -->
       <section class="panel overview-panel" id="overview-section" aria-label="Combined multi-sensor temperature chart">
         <div class="panel-header">
@@ -138,7 +138,7 @@
     </div>
 
     <!-- MAP VIEW (Latest Data Only, Coolwarm Colormap) -->
-    <div id="map-view" class="view-pane" hidden>
+    <div id="map-view" class="view-pane">
       <section class="panel map-panel" aria-label="Station map with latest temperatures">
         <div class="panel-header">
           <div class="panel-title-group">
@@ -191,7 +191,7 @@
   </footer>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
-  <script src="./app.js?v=7" defer></script>
+  <script src="./app.js?v=8" defer></script>
 </body>
 </html>
 

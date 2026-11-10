@@ -23,7 +23,7 @@
   const state = {
     stations: [], // Array of normalized station objects
     stationByKey: new Map(),
-    view: "charts", // 'charts' | 'map'
+    view: "map", // 'map' | 'charts'
     range: "week", // 'week' | 'month' | '3m' | '6m' | 'ytd' | '1y' | '2y' | 'all'
     region: "all", // 'all' | 'swimhelsinki' | 'swimespoo'
     search: "",
@@ -1183,7 +1183,7 @@
       el.countEspoo.textContent = String(espooCount);
 
       el.statusSummary.textContent = `${stations.length} stations discovered • Loading time series (0/${stations.length})…`;
-      renderAll();
+      renderAll(true);
 
       // Concurrent worker pool to load all 34 GeoJSON histories smoothly
       const queue = [...stations];
