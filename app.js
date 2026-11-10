@@ -1165,15 +1165,13 @@
       loadTelemetry();
     });
 
-    // Light / Dark theme toggle
-    const savedTheme = localStorage.getItem("sensoripaja-theme");
-    if (savedTheme === "dark" || savedTheme === "light") {
-      document.documentElement.setAttribute("data-theme", savedTheme);
-    }
+    // Light / Dark theme toggle (Dark mode by default)
+    const savedTheme = localStorage.getItem("sensoripaja-theme-v2") || "dark";
+    document.documentElement.setAttribute("data-theme", savedTheme);
     el.themeBtn.addEventListener("click", () => {
       const next = isDarkTheme() ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem("sensoripaja-theme", next);
+      localStorage.setItem("sensoripaja-theme-v2", next);
       renderAll();
     });
 
