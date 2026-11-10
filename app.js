@@ -1093,11 +1093,11 @@
     const rangeLabel = RANGE_CONFIG[state.range]?.label || "7 days";
 
     const isMap = state.view === "map";
-    el.chartsView.hidden = isMap;
-    el.mapView.hidden = !isMap;
+    if (el.chartsView) el.chartsView.hidden = isMap;
+    if (el.mapView) el.mapView.hidden = !isMap;
     // Map shows only latest data and no history option
-    el.rangePicker.hidden = isMap;
-    el.sortSelect.hidden = isMap;
+    if (el.rangePicker) el.rangePicker.hidden = isMap;
+    if (el.sortSelect) el.sortSelect.hidden = isMap;
 
     if (isMap) {
       renderMapView(visible, fitMapBounds);
@@ -1145,9 +1145,7 @@
     try {
       const regionResponses = await Promise.all(
         REGIONS.map(async (r) => {
-          const res = await fetch(`${API_BASE}/${r.id}/featurecollection.geojson`, {
-            cache: "no-cache",
-          });
+          const res = await fetch(`${API_BASE}/${r.id}/featurecollection.geojson`);
           if (!res.ok) throw new Error(`${r.id} returned HTTP ${res.status}`);
           const data = await res.json();
           return { region: r, features: data.features || [] };
@@ -1380,7 +1378,11 @@
     });
   }
 
-  bindEvents();
+  try {
+    bindEvents();
+  } catch (err) {
+    console.error("Event binding warning:", err);
+  }
   loadTelemetry();
 })();
 
