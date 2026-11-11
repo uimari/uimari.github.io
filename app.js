@@ -24,7 +24,7 @@
     stations: [], // Array of normalized station objects
     stationByKey: new Map(),
     view: "map", // 'map' | 'charts'
-    range: "week", // 'week' | 'month' | '3m' | '6m' | 'ytd' | '1y' | '2y' | 'all'
+    range: "3m", // 'week' | 'month' | '3m' | '6m' | 'ytd' | '1y' | '2y' | 'all'
     region: "all", // 'all' | 'swimhelsinki' | 'swimespoo'
     search: "",
     sort: "name", // 'name' | 'temp-desc' | 'temp-asc' | 'updated'
