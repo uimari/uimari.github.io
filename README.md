@@ -167,7 +167,7 @@ flowchart LR
 | [`styles.css`](./styles.css) | Dark-mode UI styling, responsive layout (`Stacked` and `Grid` modes), Leaflet dark-tile CSS filter, and coolwarm legend bar styling. |
 | [`app.js`](./app.js) | State management, live summary loader (`loadTelemetry`), lazy history loader (`ensureHistoriesLoaded`), Leaflet map integration, `<canvas>` time-series engine, binary-search slicing/hover, and min/max pixel-bucket downsampling. |
 | [`scripts/build-data-cache.mjs`](./scripts/build-data-cache.mjs) | Node.js build script that fetches all 34 station `.geojson` histories from `api.sensoripaja.fi` and compacts them into `./data/histories.json`. |
-| [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) | GitHub Actions workflow running every 30 minutes (`cron: "*/30 * * * *"`) and on `push` to `main` to refresh `./data/histories.json` and publish to GitHub Pages. |
+| [`.github/workflows/deploy.yml`](./.github/workflows/deploy.yml) | GitHub Actions workflow running every 30 minutes at off-peak minutes (`cron: "12,42 * * * *"`) and on `push` to `main` to refresh `./data/histories.json` and publish to GitHub Pages. |
 
 ---
 
