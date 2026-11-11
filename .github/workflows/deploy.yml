@@ -1,8 +1,10 @@
-name: Deploy static site to GitHub Pages
+name: Deploy static site & cached telemetry to GitHub Pages
 
 on:
   push:
     branches: ["main"]
+  schedule:
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -24,6 +26,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build compact telemetry cache (./data/histories.json)
+        run: node scripts/build-data-cache.mjs
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
@@ -35,4 +45,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-

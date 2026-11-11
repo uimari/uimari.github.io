@@ -37,6 +37,8 @@
     earliestGlobalMs: Date.now() - 365 * DAY_MS,
     loadedHistories: 0,
     totalStations: 0,
+    historiesLoaded: false,
+    historiesLoadingPromise: null,
     mapInstance: null,
     mapTileLayer: null,
     mapMarkersLayer: null,
@@ -1137,21 +1139,162 @@
     }
   }
 
-  // Fetch initial featurecollection.geojson files and stream individual station histories
+  // Unpack compact [tSec, temp, batt] tuples from ./data/histories.json and append newer live reading if present
+  function unpackCompactHistory(tuples, st) {
+    if (!Array.isArray(tuples) || tuples.length === 0) return [];
+    const pts = new Array(tuples.length);
+    for (let i = 0; i < tuples.length; i++) {
+      const row = tuples[i];
+      pts[i] = {
+        t: row[0] * 1000,
+        temp: row[1],
+        batt: row.length > 2 ? row[2] : null,
+      };
+    }
+    if (
+      st &&
+      typeof st.latestMs === "number" &&
+      typeof st.latestTemp === "number" &&
+      (pts.length === 0 || st.latestMs > pts[pts.length - 1].t)
+    ) {
+      pts.push({
+        t: st.latestMs,
+        temp: st.latestTemp,
+        batt: typeof st.battmV === "number" ? st.battmV : null,
+      });
+    }
+    return pts;
+  }
+
+  function applyStationPoints(st, pts) {
+    st.points = pts;
+    if (pts.length > 0) {
+      const firstPt = pts[0];
+      if (firstPt.t < state.earliestGlobalMs) {
+        state.earliestGlobalMs = firstPt.t;
+      }
+      const lastPt = pts[pts.length - 1];
+      if (!st.latestMs || lastPt.t >= st.latestMs) {
+        st.latestMs = lastPt.t;
+        st.latestTemp = lastPt.temp;
+      }
+      if (st.latestMs > state.referenceNowMs) {
+        state.referenceNowMs = st.latestMs;
+      }
+    }
+    st.historyLoaded = true;
+  }
+
+  // Lazy-load station histories (only called when Charts tab is viewed)
+  // Prefers pre-bundled ./data/histories.json (served compressed from GitHub Pages CDN)
+  // and falls back to individual api.sensoripaja.fi GeoJSON files if needed.
+  async function ensureHistoriesLoaded(forceRefresh = false) {
+    if (state.stations.length === 0) return;
+    if (state.historiesLoaded && !forceRefresh) return;
+    if (state.historiesLoadingPromise) return state.historiesLoadingPromise;
+
+    state.historiesLoadingPromise = (async () => {
+      el.loadingFill.style.opacity = "1";
+      el.loadingFill.style.width = "18%";
+      el.statusSummary.textContent = `Loading historical time series for ${state.totalStations} stations…`;
+
+      let missingStations = [...state.stations];
+
+      try {
+        const cacheRes = await fetch("./data/histories.json");
+        if (cacheRes.ok) {
+          const cacheData = await cacheRes.json();
+          const stationMap = cacheData?.stations || {};
+          missingStations = [];
+
+          for (const st of state.stations) {
+            const tuples = stationMap[st.key];
+            if (Array.isArray(tuples) && tuples.length > 0) {
+              applyStationPoints(st, unpackCompactHistory(tuples, st));
+              state.loadedHistories++;
+            } else {
+              missingStations.push(st);
+            }
+          }
+          el.loadingFill.style.width = missingStations.length === 0 ? "100%" : "75%";
+        }
+      } catch (_err) {
+        // Fallback to direct API GeoJSON fetching below
+      }
+
+      if (missingStations.length > 0) {
+        const queue = [...missingStations];
+        const concurrency = 6;
+        const workers = Array.from({ length: concurrency }, async () => {
+          while (queue.length > 0) {
+            const st = queue.shift();
+            if (!st) break;
+            try {
+              const res = await fetch(st.geojsonUrl);
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const geojson = await res.json();
+              applyStationPoints(st, parseStationGeojson(geojson));
+            } catch (err) {
+              st.historyError = err.message;
+              st.historyLoaded = true;
+            }
+
+            state.loadedHistories++;
+            const pct = Math.round((state.loadedHistories / state.totalStations) * 100);
+            el.loadingFill.style.width = `${pct}%`;
+            el.statusSummary.textContent = `${state.totalStations} stations • Loaded ${state.loadedHistories}/${state.totalStations} histories`;
+
+            if (state.view === "charts") {
+              renderStationChart(st);
+              if (state.loadedHistories % 4 === 0 || state.loadedHistories === state.totalStations) {
+                renderOverviewChart(getVisibleStations());
+              }
+            }
+          }
+        });
+
+        await Promise.all(workers);
+      }
+
+      state.historiesLoaded = true;
+      el.liveIndicator.classList.add("ready");
+      el.statusSummary.textContent = `${state.totalStations} sensors active • Latest reading ${formatDateTime(state.referenceNowMs)}`;
+      setTimeout(() => {
+        el.loadingFill.style.opacity = "0";
+      }, 350);
+
+      if (state.view === "charts") {
+        renderAll();
+      }
+    })().finally(() => {
+      state.historiesLoadingPromise = null;
+    });
+
+    return state.historiesLoadingPromise;
+  }
+
+  // Fetch initial featurecollection.geojson files (~13.5 KB total); lazy-load histories only on Charts view
   async function loadTelemetry() {
     el.refreshBtn.classList.add("spinning");
     el.liveIndicator.classList.remove("ready");
     el.errorBanner.hidden = true;
     el.loadingFill.style.opacity = "1";
-    el.loadingFill.style.width = "8%";
+    el.loadingFill.style.width = "15%";
 
     try {
       const regionResponses = await Promise.all(
         REGIONS.map(async (r) => {
-          const res = await fetch(`${API_BASE}/${r.id}/featurecollection.geojson`);
-          if (!res.ok) throw new Error(`${r.id} returned HTTP ${res.status}`);
-          const data = await res.json();
-          return { region: r, features: data.features || [] };
+          try {
+            const res = await fetch(`${API_BASE}/${r.id}/featurecollection.geojson`);
+            if (!res.ok) throw new Error(`${r.id} returned HTTP ${res.status}`);
+            const data = await res.json();
+            return { region: r, features: data.features || [] };
+          } catch (liveErr) {
+            const fallbackRes = await fetch(`./data/${r.id}/featurecollection.geojson`);
+            if (!fallbackRes.ok) throw liveErr;
+            const data = await fallbackRes.json();
+            return { region: r, features: data.features || [] };
+          }
         })
       );
 
@@ -1173,6 +1316,7 @@
       state.stationByKey = new Map(stations.map((s) => [s.key, s]));
       state.totalStations = stations.length;
       state.loadedHistories = 0;
+      state.historiesLoaded = false;
       state.referenceNowMs = maxLatestMs > 0 ? maxLatestMs : Date.now();
 
       // Update region counts
@@ -1182,62 +1326,19 @@
       el.countHelsinki.textContent = String(helsinkiCount);
       el.countEspoo.textContent = String(espooCount);
 
-      el.statusSummary.textContent = `${stations.length} stations discovered • Loading time series (0/${stations.length})…`;
-      renderAll(true);
-
-      // Concurrent worker pool to load all 34 GeoJSON histories smoothly
-      const queue = [...stations];
-      const concurrency = 6;
-      const workers = Array.from({ length: concurrency }, async () => {
-        while (queue.length > 0) {
-          const st = queue.shift();
-          if (!st) break;
-          try {
-            const res = await fetch(st.geojsonUrl);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const geojson = await res.json();
-            st.points = parseStationGeojson(geojson);
-            if (st.points.length > 0) {
-              const firstPt = st.points[0];
-              if (firstPt.t < state.earliestGlobalMs) {
-                state.earliestGlobalMs = firstPt.t;
-              }
-              const lastPt = st.points[st.points.length - 1];
-              if (!st.latestMs || lastPt.t >= st.latestMs) {
-                st.latestMs = lastPt.t;
-                st.latestTemp = lastPt.temp;
-              }
-            }
-            st.historyLoaded = true;
-          } catch (err) {
-            st.historyError = err.message;
-            st.historyLoaded = true;
-          }
-
-          state.loadedHistories++;
-          const pct = Math.round((state.loadedHistories / state.totalStations) * 100);
-          el.loadingFill.style.width = `${pct}%`;
-          el.statusSummary.textContent = `${state.totalStations} stations • Loaded ${state.loadedHistories}/${state.totalStations} histories`;
-
-          renderStationChart(st);
-          if (state.loadedHistories % 4 === 0 || state.loadedHistories === state.totalStations) {
-            renderOverviewChart(getVisibleStations());
-          }
-        }
-      });
-
-      await Promise.all(workers);
-
-      if (state.view === "map") {
-        renderMapView(getVisibleStations());
-      }
-
+      el.loadingFill.style.width = "100%";
       el.liveIndicator.classList.add("ready");
       el.statusSummary.textContent = `${state.totalStations} sensors active • Latest reading ${formatDateTime(state.referenceNowMs)}`;
       el.lastSyncLabel.textContent = `Synced ${new Date().toLocaleTimeString("fi-FI")}`;
-      setTimeout(() => {
-        el.loadingFill.style.opacity = "0";
-      }, 450);
+      renderAll(true);
+
+      if (state.view === "charts") {
+        await ensureHistoriesLoaded(true);
+      } else {
+        setTimeout(() => {
+          el.loadingFill.style.opacity = "0";
+        }, 350);
+      }
     } catch (err) {
       el.errorBanner.textContent = `Failed to load telemetry from api.sensoripaja.fi: ${err.message}`;
       el.errorBanner.hidden = false;
@@ -1263,6 +1364,9 @@
           b.setAttribute("aria-selected", String(isActive));
         }
         renderAll(view === "map");
+        if (view === "charts") {
+          ensureHistoriesLoaded();
+        }
       });
     }
 
