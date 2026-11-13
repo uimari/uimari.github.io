@@ -43,10 +43,14 @@
     mapTileLayer: null,
     mapMarkersLayer: null,
     mapTheme: null,
+    controlsOpen: typeof window !== "undefined" ? window.innerWidth > 768 : true,
   };
 
   // DOM Elements
   const el = {
+    topbar: document.getElementById("topbar"),
+    controlsDrawer: document.getElementById("controls-drawer"),
+    toggleControlsBtn: document.getElementById("toggle-controls-btn"),
     liveIndicator: document.getElementById("live-indicator"),
     statusSummary: document.getElementById("status-summary"),
     loadingFill: document.getElementById("loading-fill"),
@@ -1471,6 +1475,27 @@
     el.refreshBtn.addEventListener("click", () => {
       loadTelemetry();
     });
+
+    // Collapsible top controls drawer (auto-collapsed on mobile, toggleable on any screen)
+    const syncControlsDrawer = () => {
+      if (!el.controlsDrawer || !el.toggleControlsBtn) return;
+      el.controlsDrawer.classList.toggle("drawer-hidden", !state.controlsOpen);
+      el.toggleControlsBtn.classList.toggle("active-toggle", state.controlsOpen);
+      el.toggleControlsBtn.setAttribute("aria-expanded", String(state.controlsOpen));
+      if (el.topbar) {
+        el.topbar.classList.toggle("drawer-open", state.controlsOpen);
+      }
+      if (state.mapInstance && state.view === "map") {
+        setTimeout(() => state.mapInstance.invalidateSize(), 30);
+      }
+    };
+    syncControlsDrawer();
+    if (el.toggleControlsBtn) {
+      el.toggleControlsBtn.addEventListener("click", () => {
+        state.controlsOpen = !state.controlsOpen;
+        syncControlsDrawer();
+      });
+    }
 
     // Always use dark mode
     document.documentElement.setAttribute("data-theme", "dark");

@@ -64,9 +64,33 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
-  padding-top: 12px;
-  padding-bottom: 12px;
+  gap: 10px 14px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.topbar-primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1 1 auto;
+}
+
+.primary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn.active-toggle {
+  background: var(--surface-subtle);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.controls-bar.drawer-hidden {
+  display: none !important;
 }
 
 .brand-group {
@@ -891,27 +915,101 @@ body {
   color: var(--text);
 }
 
-@media (max-width: 720px) {
+@media (max-width: 768px) {
+  .main-content.container {
+    padding: 0;
+    max-width: 100%;
+    gap: 10px;
+  }
+
+  .topbar-inner {
+    padding: 8px 10px;
+    gap: 8px;
+  }
+
+  .brand-subtitle,
+  .meta-status {
+    display: none;
+  }
+
+  .topbar.drawer-open .meta-status {
+    display: block;
+  }
+
+  .controls-bar {
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+  }
+
+  .time-picker {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .time-picker::-webkit-scrollbar {
+    display: none;
+  }
+
+  .utility-controls {
+    width: 100%;
+  }
+
+  .search-wrap {
+    flex: 1 1 auto;
+  }
+
+  .search-input {
+    width: 100%;
+  }
+
+  .panel,
+  .station-card {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .map-panel > .panel-header {
+    display: none;
+  }
+
   .stations-list.layout-grid {
     grid-template-columns: 1fr;
   }
+
+  .overview-body {
+    padding: 10px 8px 12px;
+  }
+
   .overview-chart-wrap {
     height: 250px;
   }
+
+  .station-card {
+    padding: 12px 10px;
+  }
+
   .station-chart-wrap {
-    height: 140px;
+    height: 145px;
   }
-  .search-input {
-    width: 130px;
+
+  .section-bar {
+    padding: 0 10px;
   }
+
   .map-stage {
-    height: 460px;
+    height: calc(100dvh - 50px);
     min-height: 400px;
   }
+
   .map-coolwarm-legend {
-    width: 220px;
-    bottom: 14px;
+    width: 210px;
+    bottom: 12px;
     right: 10px;
+    padding: 9px 11px;
   }
 }
 
