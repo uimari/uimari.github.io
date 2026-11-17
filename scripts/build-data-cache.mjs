@@ -109,6 +109,28 @@ async function main() {
 
   const sizeMb = (Buffer.byteLength(jsonStr, "utf8") / (1024 * 1024)).toFixed(2);
   console.log(`Wrote ${outFile} (${sizeMb} MB uncompressed, ${Object.keys(histories).length} stations).`);
+
+  // Also write a lightweight recent24h.json (last 48h window per station) for instant Map popups
+  const recentStations = {};
+  const windowSec = 48 * 3600;
+  for (const [key, tuples] of Object.entries(histories)) {
+    if (!Array.isArray(tuples) || tuples.length === 0) {
+      recentStations[key] = [];
+      continue;
+    }
+    const maxSec = tuples[tuples.length - 1][0];
+    const minSec = maxSec - windowSec;
+    recentStations[key] = tuples.filter((row) => row[0] >= minSec);
+  }
+
+  const recentFile = path.join(OUT_DIR, "recent24h.json");
+  const recentStr = JSON.stringify({
+    generatedAt: payload.generatedAt,
+    stations: recentStations,
+  });
+  await fs.writeFile(recentFile, recentStr);
+  const recentKb = (Buffer.byteLength(recentStr, "utf8") / 1024).toFixed(1);
+  console.log(`Wrote ${recentFile} (${recentKb} KB uncompressed).`);
 }
 
 main().catch((err) => {

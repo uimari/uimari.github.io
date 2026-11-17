@@ -883,6 +883,42 @@ body {
   margin: 4px 0;
 }
 
+.map-popup-chart-block {
+  margin: 7px 0 8px;
+  padding: 6px 8px 5px;
+  background: rgba(11, 15, 23, 0.55);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 224px;
+}
+
+.map-popup-chart-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
+.map-popup-chart-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.map-popup-chart-stats {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.map-popup-canvas {
+  display: block;
+  width: 206px;
+  height: 52px;
+}
+
 .map-popup-meta {
   font-family: "JetBrains Mono", monospace;
   font-size: 11px;

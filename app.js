@@ -39,6 +39,8 @@
     totalStations: 0,
     historiesLoaded: false,
     historiesLoadingPromise: null,
+    recent24hByKey: null,
+    recent24hPromise: null,
     mapInstance: null,
     mapTileLayer: null,
     mapMarkersLayer: null,
@@ -995,6 +997,179 @@
     return card;
   }
 
+  // Load 24h recent points for a station (uses in-memory history, ./data/recent24h.json, or single-station fallback)
+  async function getStation24hPoints(st) {
+    const endMs = st.latestMs || state.referenceNowMs;
+    const startMs = endMs - DAY_MS;
+
+    if (st.points && st.points.length > 0) {
+      const sliced = slicePointsInWindow(st.points, startMs, endMs);
+      if (sliced.length >= 2) return sliced;
+    }
+
+    if (!state.recent24hByKey) {
+      if (!state.recent24hPromise) {
+        state.recent24hPromise = (async () => {
+          try {
+            const res = await fetch("./data/recent24h.json");
+            if (res.ok) {
+              const data = await res.json();
+              state.recent24hByKey = data?.stations || {};
+              return;
+            }
+          } catch (_err) {
+            // Ignore and fallback below
+          }
+          state.recent24hByKey = {};
+        })().finally(() => {
+          state.recent24hPromise = null;
+        });
+      }
+      await state.recent24hPromise;
+    }
+
+    const tuples = state.recent24hByKey?.[st.key];
+    if (Array.isArray(tuples) && tuples.length > 0) {
+      const unpacked = unpackCompactHistory(tuples, st);
+      const sliced = slicePointsInWindow(unpacked, startMs, endMs);
+      if (sliced.length >= 2) return sliced;
+    }
+
+    // Fallback: fetch this single station's GeoJSON if recent24h.json was stale or missing
+    if (!st.historyLoaded) {
+      try {
+        const res = await fetch(st.geojsonUrl);
+        if (res.ok) {
+          const geojson = await res.json();
+          applyStationPoints(st, parseStationGeojson(geojson));
+        }
+      } catch (_err) {
+        // Ignore
+      }
+    }
+
+    return slicePointsInWindow(st.points || [], startMs, endMs);
+  }
+
+  // Draw minimalistic 24h sparkline in Map station popup
+  async function renderPopup24hSparkline(st, canvas, statsEl, lineColor) {
+    const pts = await getStation24hPoints(st);
+    if (!canvas.isConnected) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const w = 206;
+    const h = 52;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    if (!pts || pts.length < 2) {
+      statsEl.textContent = "No 24h series";
+      ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
+      ctx.font = '10px "JetBrains Mono", monospace';
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("Insufficient 24h data", w / 2, h / 2);
+      return;
+    }
+
+    let minT = Infinity;
+    let maxT = -Infinity;
+    for (let i = 0; i < pts.length; i++) {
+      const v = pts[i].temp;
+      if (v < minT) minT = v;
+      if (v > maxT) maxT = v;
+    }
+
+    const delta = pts[pts.length - 1].temp - pts[0].temp;
+    const sign = delta > 0 ? "+" : "";
+    statsEl.textContent = `${minT.toFixed(1)}°–${maxT.toFixed(1)}° (${sign}${delta.toFixed(1)}°)`;
+
+    const padX = 4;
+    const padTop = 5;
+    const padBottom = 13;
+    const plotW = w - padX * 2;
+    const plotH = h - padTop - padBottom;
+
+    const endMs = pts[pts.length - 1].t;
+    const startMs = Math.min(pts[0].t, endMs - 3600 * 1000);
+    const spanMs = Math.max(1, endMs - startMs);
+
+    const rawSpan = maxT - minT;
+    const padV = rawSpan < 0.15 ? 0.12 : rawSpan * 0.12;
+    const yMin = minT - padV;
+    const yMax = maxT + padV;
+    const ySpan = Math.max(1e-6, yMax - yMin);
+
+    const xOf = (t) => padX + ((t - startMs) / spanMs) * plotW;
+    const yOf = (v) => padTop + (1 - (v - yMin) / ySpan) * plotH;
+
+    // Subtle top/bottom dashed reference guides
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.16)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 3]);
+    ctx.beginPath();
+    ctx.moveTo(padX, padTop);
+    ctx.lineTo(w - padX, padTop);
+    ctx.moveTo(padX, padTop + plotH);
+    ctx.lineTo(w - padX, padTop + plotH);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Soft area fill under sparkline
+    const grad = ctx.createLinearGradient(0, padTop, 0, padTop + plotH);
+    grad.addColorStop(0, "rgba(241, 245, 249, 0.18)");
+    grad.addColorStop(1, "rgba(241, 245, 249, 0.0)");
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const px = xOf(pts[i].t);
+      const py = yOf(pts[i].temp);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.lineTo(xOf(pts[pts.length - 1].t), padTop + plotH);
+    ctx.lineTo(xOf(pts[0].t), padTop + plotH);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Crisp 24h temperature line
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const px = xOf(pts[i].t);
+      const py = yOf(pts[i].temp);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.strokeStyle = lineColor || "#38bdf8";
+    ctx.lineWidth = 1.75;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.stroke();
+
+    // Endpoint dot at latest reading
+    const lastX = xOf(pts[pts.length - 1].t);
+    const lastY = yOf(pts[pts.length - 1].temp);
+    ctx.beginPath();
+    ctx.arc(lastX, lastY, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = lineColor || "#38bdf8";
+    ctx.fill();
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Minimalist -24h / now labels along bottom
+    ctx.fillStyle = "rgba(148, 163, 184, 0.65)";
+    ctx.font = '9.5px "JetBrains Mono", monospace';
+    ctx.textBaseline = "bottom";
+    ctx.textAlign = "left";
+    ctx.fillText("-24h", padX, h);
+    ctx.textAlign = "right";
+    ctx.fillText("now", w - padX, h);
+  }
+
   // Render Map View (Latest sensor temperatures only, Coolwarm colormap + legend)
   function ensureMapInitialized() {
     if (typeof window.L === "undefined" || !el.stationsMap) return null;
@@ -1075,6 +1250,13 @@
             <span>${escapeHtml(st.name)}</span>
           </div>
           <div class="map-popup-temp" style="color:${bg}">${formatTemp(st.latestTemp)}</div>
+          <div class="map-popup-chart-block">
+            <div class="map-popup-chart-header">
+              <span class="map-popup-chart-label">24h trend</span>
+              <span class="map-popup-chart-stats">Loading…</span>
+            </div>
+            <canvas class="map-popup-canvas" width="206" height="52"></canvas>
+          </div>
           <div class="map-popup-meta">
             <div>${escapeHtml(st.regionLabel)}${metaLines.length ? " • " + metaLines.join(" • ") : ""}</div>
             <div>Measured: ${formatDateTime(st.latestMs)} (${formatRelativeAge(st.latestMs, state.referenceNowMs)})</div>
@@ -1082,7 +1264,15 @@
           </div>
         </div>
       `;
-      marker.bindPopup(popupHtml, { closeButton: false, offset: [0, -10] });
+      marker.bindPopup(popupHtml, { closeButton: false, offset: [0, -10], minWidth: 224 });
+      marker.on("popupopen", (ev) => {
+        const popupEl = ev.popup?.getElement?.();
+        if (!popupEl) return;
+        const canvas = popupEl.querySelector(".map-popup-canvas");
+        const statsEl = popupEl.querySelector(".map-popup-chart-stats");
+        if (!canvas || !statsEl) return;
+        renderPopup24hSparkline(st, canvas, statsEl, bg);
+      });
       marker.addTo(state.mapMarkersLayer);
       bounds.push([st.lat, st.lon]);
     }
@@ -1321,6 +1511,7 @@
       state.totalStations = stations.length;
       state.loadedHistories = 0;
       state.historiesLoaded = false;
+      state.recent24hByKey = null;
       state.referenceNowMs = maxLatestMs > 0 ? maxLatestMs : Date.now();
 
       // Update region counts
