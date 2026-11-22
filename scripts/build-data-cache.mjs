@@ -110,9 +110,9 @@ async function main() {
   const sizeMb = (Buffer.byteLength(jsonStr, "utf8") / (1024 * 1024)).toFixed(2);
   console.log(`Wrote ${outFile} (${sizeMb} MB uncompressed, ${Object.keys(histories).length} stations).`);
 
-  // Also write a lightweight recent24h.json (last 48h window per station) for instant Map popups
+  // Also write a lightweight recent24h.json (last 72h window per station) for instant 48h Map popups
   const recentStations = {};
-  const windowSec = 48 * 3600;
+  const windowSec = 72 * 3600;
   for (const [key, tuples] of Object.entries(histories)) {
     if (!Array.isArray(tuples) || tuples.length === 0) {
       recentStations[key] = [];

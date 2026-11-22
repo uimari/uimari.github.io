@@ -997,10 +997,10 @@
     return card;
   }
 
-  // Load 24h recent points for a station (uses in-memory history, ./data/recent24h.json, or single-station fallback)
+  // Load 48h recent points for a station (uses in-memory history, ./data/recent24h.json, or single-station fallback)
   async function getStation24hPoints(st) {
     const endMs = st.latestMs || state.referenceNowMs;
-    const startMs = endMs - DAY_MS;
+    const startMs = endMs - 2 * DAY_MS;
 
     if (st.points && st.points.length > 0) {
       const sliced = slicePointsInWindow(st.points, startMs, endMs);
@@ -1066,12 +1066,12 @@
     ctx.clearRect(0, 0, w, h);
 
     if (!pts || pts.length < 2) {
-      statsEl.textContent = "No 24h series";
+      statsEl.textContent = "No 48h series";
       ctx.fillStyle = "rgba(148, 163, 184, 0.5)";
       ctx.font = '10px "JetBrains Mono", monospace';
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Insufficient 24h data", w / 2, h / 2);
+      ctx.fillText("Insufficient 48h data", w / 2, h / 2);
       return;
     }
 
@@ -1160,12 +1160,12 @@
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Minimalist -24h / now labels along bottom
+    // Minimalist -48h / now labels along bottom
     ctx.fillStyle = "rgba(148, 163, 184, 0.65)";
     ctx.font = '9.5px "JetBrains Mono", monospace';
     ctx.textBaseline = "bottom";
     ctx.textAlign = "left";
-    ctx.fillText("-24h", padX, h);
+    ctx.fillText("-48h", padX, h);
     ctx.textAlign = "right";
     ctx.fillText("now", w - padX, h);
   }
@@ -1260,7 +1260,7 @@
           <div class="map-popup-temp" style="color:${bg}">${formatTemp(st.latestTemp)}</div>
           <div class="map-popup-chart-block">
             <div class="map-popup-chart-header">
-              <span class="map-popup-chart-label">24h trend</span>
+              <span class="map-popup-chart-label">48h trend</span>
               <span class="map-popup-chart-stats">Loading…</span>
             </div>
             <canvas class="map-popup-canvas" width="206" height="52"></canvas>
