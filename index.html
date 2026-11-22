@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="./styles.css?v=7" />
+  <link rel="stylesheet" href="./styles.css?v=8" />
 </head>
 <body>
   <header class="topbar" id="topbar">
@@ -175,12 +175,11 @@
           <div class="map-coolwarm-legend" id="map-legend" aria-label="Temperature colormap legend">
             <div class="legend-header">
               <span class="legend-title">Water Temperature (°C)</span>
-              <span class="legend-sub">coolwarm</span>
             </div>
             <div class="coolwarm-bar" id="coolwarm-bar"></div>
             <div class="coolwarm-labels">
               <div class="cw-stop cw-min">
-                <span class="cw-tag">Min (Coolest)</span>
+                <span class="cw-tag">Min</span>
                 <strong id="cw-min-val">–</strong>
               </div>
               <div class="cw-stop cw-mid">
@@ -188,7 +187,7 @@
                 <strong id="cw-mid-val">–</strong>
               </div>
               <div class="cw-stop cw-max">
-                <span class="cw-tag">Max (Warmest)</span>
+                <span class="cw-tag">Max</span>
                 <strong id="cw-max-val">–</strong>
               </div>
             </div>

@@ -730,13 +730,13 @@ body {
   bottom: 22px;
   right: 16px;
   z-index: 500;
-  width: 260px;
+  width: 210px;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border-strong);
   border-radius: 10px;
-  padding: 11px 13px;
+  padding: 9px 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
 }
 
@@ -744,27 +744,19 @@ body {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .legend-title {
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text);
 }
 
-.legend-sub {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
 .coolwarm-bar {
-  height: 12px;
+  height: 10px;
   width: 100%;
-  border-radius: 6px;
+  border-radius: 5px;
   overflow: hidden;
   background-repeat: no-repeat;
   background-origin: border-box;
@@ -1042,10 +1034,10 @@ body {
   }
 
   .map-coolwarm-legend {
-    width: 210px;
+    width: 185px;
     bottom: 12px;
     right: 10px;
-    padding: 9px 11px;
+    padding: 8px 10px;
   }
 }
 
