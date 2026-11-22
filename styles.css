@@ -696,13 +696,13 @@ body {
 .stations-map {
   width: 100%;
   height: 100%;
-  background: #0d1520;
+  background: #18191b;
   z-index: 1;
 }
 
-/* Dark-mode styling for OpenStreetMap tiles (keeps markers & popups untouched) */
+/* Crisp contrast boost for native Esri World Dark Gray Canvas tiles */
 .stations-map .leaflet-tile-pane {
-  filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(90%);
+  filter: contrast(116%) brightness(104%);
 }
 
 .map-coolwarm-legend {

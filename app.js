@@ -1181,11 +1181,19 @@
         zoomControl: true,
       });
       state.mapTileLayer = window.L.tileLayer(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
         {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          maxZoom: 19,
+          attribution: "Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ",
+          maxNativeZoom: 16,
+          maxZoom: 18,
+        }
+      ).addTo(state.mapInstance);
+      window.L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        {
+          maxNativeZoom: 16,
+          maxZoom: 18,
+          pane: "tilePane",
         }
       ).addTo(state.mapInstance);
       state.mapMarkersLayer = window.L.layerGroup().addTo(state.mapInstance);
